@@ -1,0 +1,106 @@
+CREATE TABLE Organization (
+    organization_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    address VARCHAR(200),
+    phone VARCHAR(20),
+    email VARCHAR(100)
+);
+
+CREATE TABLE Tournament (
+    tournament_id SERIAL PRIMARY KEY,
+    organization_id INT REFERENCES Organization(organization_id)
+        ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    prize_pool DECIMAL(12,2) NOT NULL DEFAULT 0
+        CHECK (prize_pool >= 0),
+    CHECK (
+        end_date IS NULL OR start_date IS NULL
+        OR end_date >= start_date
+    )
+);
+
+CREATE TABLE Games (
+    game_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    genre VARCHAR(50),
+    developer VARCHAR(100),
+    release_date DATE
+);
+
+CREATE TABLE Teams (
+    team_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    country VARCHAR(50),
+    coach VARCHAR(100),
+    game_id INT REFERENCES Games(game_id)
+        ON DELETE SET NULL
+);
+
+CREATE TABLE Players (
+    player_id SERIAL PRIMARY KEY,
+    team_id INT REFERENCES Teams(team_id)
+        ON DELETE SET NULL,
+    nickname VARCHAR(50) NOT NULL UNIQUE,
+    full_name VARCHAR(100),
+    birth_date DATE,
+    country VARCHAR(50)
+);
+
+CREATE TABLE Matches (
+    match_id SERIAL PRIMARY KEY,
+    tournament_id INT NOT NULL
+        REFERENCES Tournament(tournament_id)
+        ON DELETE CASCADE,
+    team1_id INT NOT NULL
+        REFERENCES Teams(team_id)
+        ON DELETE RESTRICT,
+    team2_id INT NOT NULL
+        REFERENCES Teams(team_id)
+        ON DELETE RESTRICT,
+    match_date TIMESTAMP,
+    stage VARCHAR(50),
+    CHECK (team1_id <> team2_id)
+);
+
+CREATE TABLE Result (
+    result_id SERIAL PRIMARY KEY,
+    match_id INT NOT NULL UNIQUE
+        REFERENCES Matches(match_id)
+        ON DELETE CASCADE,
+    winner_team_id INT REFERENCES Teams(team_id)
+        ON DELETE SET NULL,
+    score_team1 INT NOT NULL DEFAULT 0
+        CHECK (score_team1 >= 0),
+    score_team2 INT NOT NULL DEFAULT 0
+        CHECK (score_team2 >= 0)
+);
+
+CREATE OR REPLACE FUNCTION check_match_winner()
+RETURNS TRIGGER AS $$
+DECLARE
+    t1 INT;
+    t2 INT;
+BEGIN
+    SELECT team1_id, team2_id
+    INTO t1, t2
+    FROM Matches
+    WHERE match_id = NEW.match_id;
+
+    IF NEW.winner_team_id IS NOT NULL
+       AND NEW.winner_team_id IS DISTINCT FROM t1
+       AND NEW.winner_team_id IS DISTINCT FROM t2
+    THEN
+        RAISE EXCEPTION
+            'Победитель должен участвовать в матче';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_match_winner
+BEFORE INSERT OR UPDATE ON Result
+FOR EACH ROW
+EXECUTE FUNCTION check_match_winner();
