@@ -1,0 +1,64 @@
+-- 1. Показать все турниры
+SELECT * FROM tournament;
+
+-- 2. Найти игрока по никнейму
+SELECT * FROM players
+WHERE nickname = 'WolfOne';
+
+-- 3. Показать игроков команды
+SELECT * FROM players
+WHERE team_id = 1;
+
+-- 4. Показать результаты матчей
+SELECT m.match_id, t1.name AS team1,
+       t2.name AS team2,
+       r.score_team1, r.score_team2
+FROM matches m
+JOIN teams t1 ON m.team1_id = t1.team_id
+JOIN teams t2 ON m.team2_id = t2.team_id
+LEFT JOIN result r ON m.match_id = r.match_id;
+
+-- 5. Сортировка турниров по дате
+SELECT * FROM tournament
+ORDER BY start_date;
+
+-- 6. Матчи первого турнира
+SELECT * FROM matches
+WHERE tournament_id = 1;
+
+-- 7. Добавить или обновить результат
+-- победитель автоматически берётся из матча
+INSERT INTO result
+    (match_id, winner_team_id, score_team1, score_team2)
+SELECT match_id, team1_id, 2, 1
+FROM matches
+ORDER BY match_id
+LIMIT 1
+ON CONFLICT (match_id)
+DO UPDATE SET
+    winner_team_id = EXCLUDED.winner_team_id,
+    score_team1 = EXCLUDED.score_team1,
+    score_team2 = EXCLUDED.score_team2;
+
+-- 8. Показать команды и их игры
+SELECT teams.name AS team,
+       games.name AS game
+FROM teams
+JOIN games ON teams.game_id = games.game_id;
+
+-- 9. Количество игроков в каждой команде
+SELECT teams.name,
+       COUNT(players.player_id) AS players_count
+FROM teams
+LEFT JOIN players ON teams.team_id = players.team_id
+GROUP BY teams.team_id, teams.name;
+
+-- 10. Проверить количество записей
+SELECT
+    (SELECT COUNT(*) FROM organization) AS organizations,
+    (SELECT COUNT(*) FROM games) AS games,
+    (SELECT COUNT(*) FROM tournament) AS tournaments,
+    (SELECT COUNT(*) FROM teams) AS teams,
+    (SELECT COUNT(*) FROM players) AS players,
+    (SELECT COUNT(*) FROM matches) AS matches,
+    (SELECT COUNT(*) FROM result) AS results;
